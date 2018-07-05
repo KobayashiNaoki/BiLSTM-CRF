@@ -4,24 +4,24 @@ BiLSTM-CRF for Kaomoji Detection
 
 # Files
 
-* kaomoji_tagger.py
+* kaomoji_tagger.py  
   BiLSTM-CRF model
-* train.py
+* train.py  
   training script
-* make_iterator.py
+* make_iterator.py  
   use torchtext for batch processing.
-* preprocess.sh
+* preprocess.sh  
   preprocessing shell script.
-* pickle2tsv.py
+* pickle2tsv.py  
   convert pickle data to tsv data.
-* filter.py
+* filter.py  
   remove lines with different numbers of tags and chars.
-* dataset_clean.txt
+* dataset_clean.txt  
   cleaned dataset (Line 29490, 40929 are deleted).
-* dataset_random.txt
-  shuffled dataset.`
-* train.txt, valid.txt
-  splited dataset extracted from dataset_random.txt.
+* dataset_random.txt  
+  --shuffled dataset.
+* train.txt, valid.txt  
+  --splited dataset extracted from dataset_random.txt.
 
 # Usage
 
