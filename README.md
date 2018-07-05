@@ -53,4 +53,4 @@ BiLSTM-CRF for Kaomoji Detection
 
 # Reference
 
-(GitHub:BiLSTM-CRF on PyTorch)[https://github.com/kaniblu/pytorch-bilstmcrf]
+[GitHub:BiLSTM-CRF on PyTorch](https://github.com/kaniblu/pytorch-bilstmcrf)
