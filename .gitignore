@@ -1,0 +1,9 @@
+__pycache__/
+result*/
+runs/
+dataset.pkl
+dataset.txt
+dataset_clean.txt
+dataset_random.txt
+train.txt
+valid.txt
