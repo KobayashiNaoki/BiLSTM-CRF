@@ -19,9 +19,9 @@ BiLSTM-CRF for Kaomoji Detection
 * dataset_clean.txt  
   cleaned dataset (Line 29490, 40929 are deleted).
 * dataset_random.txt  
-  --shuffled dataset.
+  shuffled dataset.
 * train.txt, valid.txt  
-  --splited dataset extracted from dataset_random.txt.
+  splited dataset extracted from dataset_random.txt.
 
 # Usage
 
