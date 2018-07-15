@@ -30,6 +30,7 @@ def main():
                         help='Resume trained model [default: None]')
     parser.add_argument('-tensorboard', action='store_true',
                         help='Logging to tensorboard (pip install tensorboardX) [default: False]')
+    parser.add_argument('-test_only', action='store_true')
 
     args = parser.parse_args()
     out_dir = Path(args.out_dir)
@@ -55,6 +56,12 @@ def main():
         start_epoch = snapshot['epoch']
     else:
         start_epoch = 0
+
+    # test_only mode
+    if args.test_only:
+        valid_loss, valid_accu = valid_loop(valid_iter, model)
+        print(valid_accu)
+        return 0
 
     # prepare a tensorboard
     if args.tensorboard:
@@ -88,6 +95,7 @@ def main():
         writer.export_scalars_to_json(out_dir / "log.json")
         writer.close()
 
+    return 0
 
 def train_loop(train_iter, model, optimizer):
     model.train()
@@ -122,14 +130,16 @@ def valid_loop(valid_iter, model):
         length = batch.text[1]
         # forward computation
         loss = model(src, trg, length)
+        sum_loss += loss.sum().item()
         # label prediction
         label, scores = model.predict(src, length, return_scores=True)
-        # calc accuracy
-        accu = ((trg != 1) & (label == trg)).sum(dim=1).float()
-        accu = accu.div(length.float())
-        sum_accu += accu.sum().item()
-        sum_loss += loss.sum().item()
         normalize += length.size()[0]
+        # calc accuracy
+        kao_tag = ((trg != 1) & (trg != 2)) #1:padding, 2:O tag
+        correct = ((trg == label) & kao_tag).sum(dim=1) #dim=1: sum per sentences
+        accu = correct.float() / kao_tag.sum(dim=1).float()
+        sum_accu += accu.sum().item()
+    # normalize
     avg_loss = sum_loss / normalize
     avg_accu = sum_accu / normalize
     model.train()
