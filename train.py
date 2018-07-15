@@ -20,10 +20,12 @@ def main():
                         help='Batch size [default: 512]')
     parser.add_argument('-hidden_size', type=int, default=128,
                         help='Number of node in hidden layers [default: 128]')
-    parser.add_argument('-train_file', type=str, default='train.txt',
-                        help='Train dataset file [default: train.txt]')
-    parser.add_argument('-valid_file', type=str, default='valid.txt',
-                        help='Validation dataset file [default: valid.txt]')
+    parser.add_argument('-train_file', type=str, default='data/train.txt',
+                        help='Train dataset file [default: data/train.txt]')
+    parser.add_argument('-valid_file', type=str, default='data/valid.txt',
+                        help='Validation dataset file [default: data/valid.txt]')
+    parser.add_argument('-test_file', type=str, default=None,
+                        help='Test dataset file [default: None]')
     parser.add_argument('-out_dir', type=str, default='result',
                         help='Directory to Output [default: result]')
     parser.add_argument('-resume', type=str, default=None,
@@ -39,6 +41,8 @@ def main():
     # load dataset
     train_iter, train_size, vocabs, device, fields = make_train_iterator(args.train_file, args.batch_size, args.gpu)
     valid_iter, valid_size = make_valid_iterator(args.valid_file, args.batch_size, device, fields)
+    if args.test_file is not None:
+        test_iter, test_size = make_valid_iterator(args.test_file, args.batch_size, device, fields)
 
     # Setup a neural network
     model = KaomojiTagger(len(vocabs[0]), len(vocabs[1]),
@@ -61,6 +65,9 @@ def main():
     if args.test_only:
         valid_loss, valid_accu = valid_loop(valid_iter, model)
         print(valid_accu)
+        if args.test_file is not None:
+            test_loss, test_accu = valid_loop(test_iter, model)
+            print(test_accu)
         return 0
 
     # prepare a tensorboard
