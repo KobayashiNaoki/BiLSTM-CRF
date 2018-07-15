@@ -11,13 +11,17 @@ import torch.optim as optim
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('-no_CRF', action='store_true',
-                        help='flag CRF layer [default: use CRF]')
+                        help='Flag CRF layer [default: use CRF]')
+    parser.add_argument('-optimizer', type=str, choices=['SGD, Adam'], default='SGD',
+                        help='Select Optimizer SGD or Adam [default: SGD]')
     parser.add_argument('-gpu', type=int, default=-1,
                         help='GPU ID [default: -1]')
     parser.add_argument('-epoch', type=int, default=5,
                         help='Num of Epoch [default: 5]')
     parser.add_argument('-batch_size', type=int, default=512,
                         help='Batch size [default: 512]')
+    parser.add_argument('-embed_size', type=int, default=128,
+                        help='Size of embedding dimension [default: 128]')
     parser.add_argument('-hidden_size', type=int, default=128,
                         help='Number of node in hidden layers [default: 128]')
     parser.add_argument('-train_file', type=str, default='data/train.txt',
@@ -46,11 +50,14 @@ def main():
 
     # Setup a neural network
     model = KaomojiTagger(len(vocabs[0]), len(vocabs[1]),
-                          args.hidden_size, dropout_p=0.3, use_CRF=not args.no_CRF)
+                          args.embed_size, args.hidden_size, dropout_p=0.1, use_CRF=not args.no_CRF)
     model.to(device=device)
 
     # Setup an optimizer
-    optimizer = optim.Adam(model.parameters())
+    if args.optimizer == 'SGD':
+        optimizer = optim.SGD(model.parameters(), lr=0.1)
+    elif args.optimizer == 'Adam':
+        optimizer = optim.Adam(model.parameters())
 
     # load the snapshot
     if args.resume:

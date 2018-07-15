@@ -5,7 +5,7 @@ import torch.nn.functional as F
 import numpy
 
 class KaomojiTagger(nn.Module):
-    def __init__(self, source_vocab_size, target_vocab_size, hidden_size, dropout_p=0.3, use_CRF=True):
+    def __init__(self, source_vocab_size, target_vocab_size, embed_size, hidden_size, dropout_p=0.1, use_CRF=True):
         super(KaomojiTagger, self).__init__()
         dropout_p = dropout_p
 
@@ -16,7 +16,7 @@ class KaomojiTagger(nn.Module):
             self.loss_fun = nn.CrossEntropyLoss(ignore_index=1, size_average=False)
             self.crf = None
 
-        self.bilstm = BiLSTM(source_vocab_size, target_vocab_size, hidden_size, dropout_p)
+        self.bilstm = BiLSTM(source_vocab_size, target_vocab_size, embed_size, hidden_size, dropout_p)
 
     def forward(self, src, trg, length, return_logits=False):
         logits = self.bilstm(src, length)
@@ -70,13 +70,13 @@ class KaomojiTagger(nn.Module):
 
 
 class BiLSTM(nn.Module):
-    def __init__(self, source_vocab_size, target_vocab_size, hidden_size, dropout_p=0.3):
+    def __init__(self, source_vocab_size, target_vocab_size, embed_size, hidden_size, dropout_p=0.1):
         super(BiLSTM, self).__init__()
         input_size = source_vocab_size
         output_size = target_vocab_size
         dropout_p = dropout_p
-        self.embed = nn.Embedding(input_size, hidden_size, padding_idx=1)
-        self.lstm = nn.LSTM(hidden_size, hidden_size, num_layers=2,
+        self.embed = nn.Embedding(input_size, embed_size, padding_idx=1)
+        self.lstm = nn.LSTM(embed_size, hidden_size, num_layers=2,
                             dropout=dropout_p, bidirectional=True, batch_first=True)
         self.linear = nn.Linear(hidden_size * 2, output_size)
         self.embed_dropout = nn.Dropout(p=0.1)
