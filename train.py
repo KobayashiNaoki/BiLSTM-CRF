@@ -12,7 +12,9 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('-no_CRF', action='store_true',
                         help='Flag CRF layer [default: use CRF]')
-    parser.add_argument('-optimizer', type=str, choices=['SGD, Adam'], default='SGD',
+    parser.add_argument('-no_features', action='store_true',
+                        help='Flag not use features  [default: use features]')
+    parser.add_argument('-optimizer', type=str, choices=['SGD', 'Adam'], default='SGD',
                         help='Select Optimizer SGD or Adam [default: SGD]')
     parser.add_argument('-gpu', type=int, default=-1,
                         help='GPU ID [default: -1]')
@@ -22,6 +24,8 @@ def main():
                         help='Batch size [default: 512]')
     parser.add_argument('-embed_size', type=int, default=128,
                         help='Size of embedding dimension [default: 128]')
+    parser.add_argument('-feat_embed_size', type=int, default=16,
+                        help='Size of embedding dimension [default: 16]')
     parser.add_argument('-hidden_size', type=int, default=128,
                         help='Number of node in hidden layers [default: 128]')
     parser.add_argument('-train_file', type=str, default='data/train.txt',
@@ -50,7 +54,9 @@ def main():
 
     # Setup a neural network
     model = KaomojiTagger(len(vocabs[0]), len(vocabs[1]),
-                          args.embed_size, args.hidden_size, dropout_p=0.1, use_CRF=not args.no_CRF)
+                          [len(vocabs[2]), len(vocabs[3])],
+                          args.embed_size, args.feat_embed_size, args.hidden_size,
+                          dropout_p=0.1, use_CRF=not args.no_CRF, use_feature=not args.no_features)
     model.to(device=device)
 
     # Setup an optimizer
@@ -118,9 +124,10 @@ def train_loop(train_iter, model, optimizer):
     for iteration, batch in enumerate(train_iter):
         src = batch.text[0]
         trg = batch.tag
+        feats = (batch.pos, batch.position)
         length = batch.text[1]
         # forward computation
-        loss = model(src, trg, length)
+        loss = model(src, trg, feats, length)
         m_loss = loss.mean()
         # init gradient
         optimizer.zero_grad()
@@ -141,12 +148,13 @@ def valid_loop(valid_iter, model):
     for iteration, batch in enumerate(valid_iter):
         src = batch.text[0]
         trg = batch.tag
+        feats = (batch.pos, batch.position)
         length = batch.text[1]
         # forward computation
-        loss = model(src, trg, length)
+        loss = model(src, trg, feats, length)
         sum_loss += loss.sum().item()
         # label prediction
-        label, scores = model.predict(src, length, return_scores=True)
+        label, scores = model.predict(src, feats, length, return_scores=True)
         normalize += length.size()[0]
         # calc accuracy
         kao_tag = ((trg != 1) & (trg != 2)) #1:padding, 2:O tag

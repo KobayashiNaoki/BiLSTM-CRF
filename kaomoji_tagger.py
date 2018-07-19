@@ -5,7 +5,9 @@ import torch.nn.functional as F
 import numpy
 
 class KaomojiTagger(nn.Module):
-    def __init__(self, source_vocab_size, target_vocab_size, embed_size, hidden_size, dropout_p=0.1, use_CRF=True):
+    def __init__(self, source_vocab_size, target_vocab_size, feat_vocab_sizes,
+                 embed_size, feat_embed_size, hidden_size,
+                 dropout_p=0.1, use_CRF=True, use_feature=True):
         super(KaomojiTagger, self).__init__()
         dropout_p = dropout_p
 
@@ -16,10 +18,15 @@ class KaomojiTagger(nn.Module):
             self.loss_fun = nn.CrossEntropyLoss(ignore_index=1, size_average=False)
             self.crf = None
 
-        self.bilstm = BiLSTM(source_vocab_size, target_vocab_size, embed_size, hidden_size, dropout_p)
+        self.embedding = Embedding(source_vocab_size, feat_vocab_sizes,
+                                   embed_size, feat_embed_size, use_feature=use_feature)
+        if use_feature:
+            embed_size = embed_size + (feat_embed_size * len(feat_vocab_sizes))
+        self.bilstm = BiLSTM(target_vocab_size, embed_size, hidden_size, dropout_p)
 
-    def forward(self, src, trg, length, return_logits=False):
-        logits = self.bilstm(src, length)
+    def forward(self, src, trg, feats, length, return_logits=False):
+        ex = self.embedding(src, feats)
+        logits = self.bilstm(ex, length)
         if self.crf is None:
             b, l, v = logits.size()
             output = logits.view(b * l, v)
@@ -35,8 +42,9 @@ class KaomojiTagger(nn.Module):
         else:
             return -loglik
 
-    def predict(self, xs, length, return_scores=False):
-        logits = self.bilstm(xs, length)
+    def predict(self, src, feats, length, return_scores=False):
+        ex = self.embedding(src, feats)
+        logits = self.bilstm(ex, length)
         if self.crf is None:
             preds = torch.argmax(logits, dim=2)
             scores = None
@@ -69,24 +77,42 @@ class KaomojiTagger(nn.Module):
         return score
 
 
+class Embedding(nn.Module):
+    def __init__(self, source_vocab_size, feat_vocab_sizes,
+                 embed_size, feat_embed_size, dropout_p=0.1, use_feature=True):
+        super(Embedding, self).__init__()
+        self.char_embed = nn.Embedding(source_vocab_size, embed_size, padding_idx=1)
+        self.use_feature = use_feature
+        if use_feature:
+            self.feats_embed = nn.ModuleList()
+            for feat_size in feat_vocab_sizes:
+                self.feats_embed.append(nn.Embedding(feat_size, feat_embed_size, padding_idx=1))
+        self.embed_dropout = nn.Dropout(p=dropout_p)
+
+    def forward(self, src, feats):
+        char = src
+        # Embedding: ex = E(x)
+        ex = self.char_embed(char)  # BxL -> BxLxH
+        if self.use_feature:
+            embeddings = [ex]
+            for feat, embed in zip(feats, self.feats_embed):
+                embeddings.append(embed(feat))
+            ex = torch.cat(embeddings, dim=2)
+        ex = self.embed_dropout(ex)
+        return ex
+
+
 class BiLSTM(nn.Module):
-    def __init__(self, source_vocab_size, target_vocab_size, embed_size, hidden_size, dropout_p=0.1):
+    def __init__(self, target_vocab_size, embed_size, hidden_size, dropout_p=0.1):
         super(BiLSTM, self).__init__()
-        input_size = source_vocab_size
         output_size = target_vocab_size
         dropout_p = dropout_p
-        self.embed = nn.Embedding(input_size, embed_size, padding_idx=1)
         self.lstm = nn.LSTM(embed_size, hidden_size, num_layers=2,
                             dropout=dropout_p, bidirectional=True, batch_first=True)
         self.linear = nn.Linear(hidden_size * 2, output_size)
-        self.embed_dropout = nn.Dropout(p=0.1)
 
-    def forward(self, src, length):
-        x = src
-        # Embedding: ex = E(x)
-        ex = self.embed(x)  # BxL -> BxLxH
-        ex = self.embed_dropout(ex)
-        
+    def forward(self, ex, length):
+
         # Sort in decreasing order
         length, parm_idx = torch.sort(length, 0, descending=True)
         device = parm_idx.device
@@ -105,6 +131,7 @@ class BiLSTM(nn.Module):
         # Linear: y = W(h)
         y = self.linear(h) # BxLx2*H -> BxLxV
         return y
+
 
 def _inverse_indices(indices):
     indices = indices.cpu().numpy()
