@@ -48,6 +48,9 @@ def main():
 
     # load dataset
     train_iter, train_size, vocabs, device, fields = make_train_iterator(args.train_file, args.batch_size, args.gpu)
+    print('vocab size (include <unk>, <pad>)| char:{}, tag:{}, pos:{}, position:{}'.format(
+        len(vocabs[0]), len(vocabs[1]), len(vocabs[2]), len(vocabs[3])))
+    O_tag_id = vocabs[1]['O'] #tag vocab
     valid_iter, valid_size = make_valid_iterator(args.valid_file, args.batch_size, device, fields)
     if args.test_file is not None:
         test_iter, test_size = make_valid_iterator(args.test_file, args.batch_size, device, fields)
@@ -76,11 +79,11 @@ def main():
 
     # test_only mode
     if args.test_only:
-        valid_loss, valid_accu = valid_loop(valid_iter, model)
-        print(valid_accu)
+        valid_loss, valid_accu_all, valid_accu_bi = valid_loop(valid_iter, model)
+        print(valid_accu_all, valid_accu_bi)
         if args.test_file is not None:
-            test_loss, test_accu = valid_loop(test_iter, model)
-            print(test_accu)
+            test_loss, test_accu_all, test_accu_bi = valid_loop(test_iter, model, O_tag_id)
+            print(test_accu_all, test_accu_bi)
         return 0
 
     # prepare a tensorboard
@@ -93,23 +96,24 @@ def main():
         # train step
         train_loss = train_loop(train_iter, model, optimizer)
         # validation step
-        valid_loss, valid_accu = valid_loop(valid_iter, model)
+        valid_loss, valid_accu_all, valid_accu_bi = valid_loop(valid_iter, model, O_tag_id)
         # save snapshot
         torch.save(
             {'epoch': epoch,
              'train/loss': train_loss,
              'valid/loss': valid_loss,
-             'valid/accu': valid_accu,
+             'valid/accu': valid_accu_all,
              'model': model.state_dict(),
              'optimizer': optimizer.state_dict()},
             out_dir / 'model_{}.pt'.format(epoch))
         # logging
-        print('epoch:{}, train/loss:{}, valid/loss:{}, valid/accu:{}'.format(
-            epoch, train_loss, valid_loss, valid_accu))
+        print('epoch:{}, train/loss:{}, valid/loss:{}, valid/accu(ALL):{}, valid/accu(BI):{}'.format(
+            epoch, train_loss, valid_loss, valid_accu_all, valid_accu_bi))
         if args.tensorboard:
             writer.add_scalar('train/loss', train_loss, epoch)
             writer.add_scalar('valid/loss', valid_loss, epoch)
-            writer.add_scalar('valid/accu', valid_accu, epoch)
+            writer.add_scalar('valid/accu/all', valid_accu_all, epoch)
+            writer.add_scalar('valid/accu/bi', valid_accu_bi, epoch)
 
     if args.tensorboard:
         writer.export_scalars_to_json(out_dir / "log.json")
@@ -141,9 +145,9 @@ def train_loop(train_iter, model, optimizer):
     avg_loss = sum_loss / normalize
     return avg_loss
 
-def valid_loop(valid_iter, model):
+def valid_loop(valid_iter, model, O_tag_id):
     model.eval()
-    sum_loss, sum_accu = 0, 0
+    sum_loss, sum_accu_all, sum_accu_bi = 0, 0, 0
     normalize = 0
     for iteration, batch in enumerate(valid_iter):
         src = batch.text[0]
@@ -156,16 +160,22 @@ def valid_loop(valid_iter, model):
         # label prediction
         label, scores = model.predict(src, feats, length, return_scores=True)
         normalize += length.size()[0]
-        # calc accuracy
-        kao_tag = ((trg != 1) & (trg != 2)) #1:padding, 2:O tag
-        correct = ((trg == label) & kao_tag).sum(dim=1) #dim=1: sum per sentences
-        accu = correct.float() / kao_tag.sum(dim=1).float()
-        sum_accu += accu.sum().item()
+        # calc accuracy (all tag)
+        target_tag = ((trg != 1)) #1:padding
+        correct = ((trg == label) & target_tag).sum(dim=1) #dim=1: sum per sentences
+        accu = correct.float() / target_tag.sum(dim=1).float()
+        sum_accu_all += accu.sum().item()
+        # calc accuracy (bi tag)
+        target_tag = ((trg != 1) & (trg != O_tag_id)) #1:padding, 2:O tag
+        correct = ((trg == label) & target_tag).sum(dim=1) #dim=1: sum per sentences
+        accu = correct.float() / target_tag.sum(dim=1).float()
+        sum_accu_bi += accu.sum().item()
     # normalize
     avg_loss = sum_loss / normalize
-    avg_accu = sum_accu / normalize
+    avg_accu_all = sum_accu_all / normalize
+    avg_accu_bi = sum_accu_bi / normalize
     model.train()
-    return avg_loss, avg_accu
+    return avg_loss, avg_accu_all, avg_accu_bi
 
 if __name__ == '__main__':
     main()
