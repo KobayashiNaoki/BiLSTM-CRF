@@ -117,7 +117,7 @@ def train_loop(train_iter, model, optimizer):
     normalize = 0
     for iteration, batch in enumerate(train_iter):
         src = batch.text[0]
-        trg = batch.tag[0]
+        trg = batch.tag
         length = batch.text[1]
         # forward computation
         loss = model(src, trg, length)
@@ -140,7 +140,7 @@ def valid_loop(valid_iter, model):
     normalize = 0
     for iteration, batch in enumerate(valid_iter):
         src = batch.text[0]
-        trg = batch.tag[0]
+        trg = batch.tag
         length = batch.text[1]
         # forward computation
         loss = model(src, trg, length)

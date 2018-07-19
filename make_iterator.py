@@ -18,8 +18,10 @@ def make_train_iterator(train_file, batch_size, device):
         return sentence.split()
     
     TEXT = data.Field(sequential=True, tokenize=tokenizer, include_lengths=True, batch_first=True)
-    TAG = data.Field(sequential=True, tokenize=tokenizer, include_lengths=True, batch_first=True)
-    fields = [('text', TEXT), ('tag', TAG)]
+    TAG = data.Field(sequential=True, tokenize=tokenizer, batch_first=True)
+    POS = data.Field(sequential=True, tokenize=tokenizer, batch_first=True)
+    POSITION = data.Field(sequential=True, tokenize=tokenizer, batch_first=True)
+    fields = [('text', TEXT), ('tag', TAG), ('pos', POS), ('position', POSITION)]
     
     train = data.TabularDataset(
         path=train_file, format='tsv',
@@ -27,7 +29,9 @@ def make_train_iterator(train_file, batch_size, device):
     
     TEXT.build_vocab(train, min_freq=1)
     TAG.build_vocab(train, min_freq=1)
-        
+    POS.build_vocab(train, min_freq=0)
+    POSITION.build_vocab(train, min_freq=0)
+    
     train_iter = data.Iterator(
         train, batch_size=batch_size, device=device, repeat=False,
         sort_key=lambda x: data.interleave_keys(len(x.text)))
@@ -35,7 +39,7 @@ def make_train_iterator(train_file, batch_size, device):
     """
     return: iterator, data-size, vocabs(string to index)
     """
-    return train_iter, len(train), (TEXT.vocab.stoi, TAG.vocab.stoi), device, fields
+    return train_iter, len(train), (TEXT.vocab.stoi, TAG.vocab.stoi, POS.vocab.stoi, POSITION.vocab.stoi), device, fields
 
 
 def make_valid_iterator(valid_file, batch_size, device, fields):
@@ -59,10 +63,10 @@ def make_valid_iterator(valid_file, batch_size, device, fields):
 if __name__ == '__main__':
     # Usage
     BATCHSIZE = 64
-    DEVICE = 1
-    FILE_NAME = 'train.txt'
+    DEVICE = 0
+    FILE_NAME = 'data/train.txt'
     EPOCH = 10
-    train_iter, size, vocabs, device = make_train_iterator(FILE_NAME, BATCHSIZE, DEVICE)
+    train_iter, size, vocabs, device, fields = make_train_iterator(FILE_NAME, BATCHSIZE, DEVICE)
     print('DATASIZE :{}'.format(size))
 
     print('vocab sample (TEXT)')
@@ -77,15 +81,30 @@ if __name__ == '__main__':
             break
         print(word, index)
 
+    print('vocab sample (POS)')
+    for i, (word, index) in enumerate(vocabs[2].items()):
+        if i > 10 :
+            break
+        print(word, index)
+
+    print('vocab sample (POSITION)')
+    for i, (word, index) in enumerate(vocabs[3].items()):
+        if i > 10 :
+            break
+        print(word, index)
+
     # learning loot
     for epoch in range(EPOCH): # epoch loop
         for iteration, batch in enumerate(train_iter): # iteration loop
             print(batch.text[0].size()) # shape matrix
             print(batch.text[0]) # char data
             print(batch.text[1]) # char data length
-            print(batch.tag[0].size()) # shape matrix
-            print(batch.tag[0])  # tag data
-            print(batch.tag[1])  # tag data length
+            print(batch.tag.size()) # shape matrix
+            print(batch.tag)  # tag data
+            print(batch.pos.size()) # shape matrix
+            print(batch.pos)  # pos data
+            print(batch.position.size()) # shape matrix
+            print(batch.position)  # position data
             """
             loss = model(batch.text[0], batch.tag[0]) # forward computaiton
             loss.backword() # compute backprop
