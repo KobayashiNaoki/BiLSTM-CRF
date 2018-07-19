@@ -13,7 +13,9 @@ cat data/dataset.tsv | sed '29490d' | sed '40929d' > $tmp1
 cat $tmp1 | python tools/length_filter.py > $tmp2
 # ABIO convert to BIO
 cat $tmp2 | python tools/abio2bio.py > $tmp1
+# Add POS, postion features
+cat $tmp1 | python tools/add_features.py > $tmp2
 # random sort, make train and valid file
-cat $tmp1 | shuf > $tmp2
-cat $tmp2 | sed -n '3001,$p' > data/train.txt
-cat $tmp2 | head -n 3000 > data/valid.txt
+cat $tmp2 | shuf > $tmp1
+cat $tmp1 | sed -n '3001,$p' > data/train.txt
+cat $tmp1 | head -n 3000 > data/valid.txt
