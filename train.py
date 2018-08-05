@@ -1,3 +1,4 @@
+import sys
 import argparse
 from pathlib import Path
 
@@ -49,8 +50,8 @@ def main():
     # load dataset
     train_iter, train_size, vocabs, device, fields = make_train_iterator(args.train_file, args.batch_size, args.gpu)
     print('vocab size (include <unk>, <pad>)| char:{}, tag:{}, pos:{}, position:{}'.format(
-        len(vocabs[0]), len(vocabs[1]), len(vocabs[2]), len(vocabs[3])))
-    O_tag_id = vocabs[1]['O'] #tag vocab
+        len(vocabs[0]), len(vocabs[1]), len(vocabs[2]), len(vocabs[3])), file=sys.stderr)
+    O_tag_id = vocabs[1].stoi['O'] #tag vocab
     valid_iter, valid_size = make_valid_iterator(args.valid_file, args.batch_size, device, fields)
     if args.test_file is not None:
         test_iter, test_size = make_valid_iterator(args.test_file, args.batch_size, device, fields)
@@ -79,11 +80,13 @@ def main():
 
     # test_only mode
     if args.test_only:
-        valid_loss, valid_accu_all, valid_accu_bi = valid_loop(valid_iter, model)
-        print(valid_accu_all, valid_accu_bi)
+        valid_loss, valid_accu_all, valid_accu_bi = valid_loop(valid_iter, model, O_tag_id)
+        print(valid_accu_all, valid_accu_bi, file=sys.stderr)
         if args.test_file is not None:
             test_loss, test_accu_all, test_accu_bi = valid_loop(test_iter, model, O_tag_id)
-            print(test_accu_all, test_accu_bi)
+            print(test_accu_all, test_accu_bi, file=sys.stderr)
+            kao_dict = extract_kaomoji(test_iter, model, O_tag_id, vocabs[0])
+            print('\n'.join(kao_dict))
         return 0
 
     # prepare a tensorboard
@@ -108,7 +111,7 @@ def main():
             out_dir / 'model_{}.pt'.format(epoch))
         # logging
         print('epoch:{}, train/loss:{}, valid/loss:{}, valid/accu(ALL):{}, valid/accu(BI):{}'.format(
-            epoch, train_loss, valid_loss, valid_accu_all, valid_accu_bi))
+            epoch, train_loss, valid_loss, valid_accu_all, valid_accu_bi), file=sys.stderr)
         if args.tensorboard:
             writer.add_scalar('train/loss', train_loss, epoch)
             writer.add_scalar('valid/loss', valid_loss, epoch)
@@ -176,6 +179,38 @@ def valid_loop(valid_iter, model, O_tag_id):
     avg_accu_bi = sum_accu_bi / normalize
     model.train()
     return avg_loss, avg_accu_all, avg_accu_bi
+
+def extract_kaomoji(test_iter, model, O_tag_id, vocab):
+    kaomoji_dict = []
+    model.eval()
+    for iteration, batch in enumerate(test_iter):
+        src = batch.text[0]
+        feats = (batch.pos, batch.position)
+        length = batch.text[1]
+        # label prediction
+        label, scores = model.predict(src, feats, length, return_scores=True)
+        kaomoji_dict.extend(_extract_kaomoji(label, src, O_tag_id, vocab))
+    return kaomoji_dict
+
+def _extract_kaomoji(tags, sentences, O_tag_id, vocab):
+    tags = tags.cpu().numpy()
+    sentences = sentences.cpu().numpy()
+    kaomojis = []
+    for labels, sentence in zip(tags, sentences): #batch loop
+        kaomoji = []
+        for label, char_id in zip(labels, sentence):
+            char = vocab.itos[char_id]
+            if char == '<pad>':
+                break
+            if label != O_tag_id:
+                kaomoji.append(char)
+            elif label == O_tag_id and len(kaomoji) > 0:
+                kaomojis.append(''.join(kaomoji))
+                kaomoji = []
+        if len(kaomoji) > 0:
+            kaomojis.append(''.join(kaomoji))
+            kaomoji = []
+    return kaomojis
 
 if __name__ == '__main__':
     main()

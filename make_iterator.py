@@ -39,7 +39,7 @@ def make_train_iterator(train_file, batch_size, device):
     """
     return: iterator, data-size, vocabs(string to index)
     """
-    return train_iter, len(train), (TEXT.vocab.stoi, TAG.vocab.stoi, POS.vocab.stoi, POSITION.vocab.stoi), device, fields
+    return train_iter, len(train), (TEXT.vocab, TAG.vocab, POS.vocab, POSITION.vocab), device, fields
 
 
 def make_valid_iterator(valid_file, batch_size, device, fields):
