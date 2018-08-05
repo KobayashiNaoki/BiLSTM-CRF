@@ -23,3 +23,9 @@ cat $tmp1 | head -n 3000 > data/valid.txt
 # make test
 cat data/test.origin | python tools/dummy_tag.py > $tmp1
 cat $tmp1 | python tools/add_features.py > data/test.txt
+
+# expand train/valid with no_kaomoji data(remeved kaomoji from train/valid)
+cat data/train.txt | python tools/delete_kaomoji.py > $tmp1
+cat data/train.txt $tmp1 > data/train_expand.txt
+cat data/valid.txt | python tools/delete_kaomoji.py > $tmp1
+cat data/valid.txt $tmp1 > data/valid_expand.txt
