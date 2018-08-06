@@ -115,6 +115,7 @@ class BiLSTM(nn.Module):
 
         # Sort in decreasing order
         length, parm_idx = torch.sort(length, 0, descending=True)
+        ex = ex[parm_idx]
         device = parm_idx.device
         parm_idx_rev = torch.tensor(_inverse_indices(parm_idx), device=device)
 
