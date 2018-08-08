@@ -1,6 +1,6 @@
 #!/bin/bash
 
-trap 'rm $tmp1 $tmp2' ERR EXIT
+trap 'rm ${tmp1} ${tmp2}; exit 0' 1 2 3 15
 
 tmp1=$(mktemp)
 tmp2=$(mktemp)
@@ -21,7 +21,9 @@ cat $tmp1 | sed -n '3001,$p' > data/train.txt
 cat $tmp1 | head -n 3000 > data/valid.txt
 
 # make test
-cat data/test.origin | python tools/dummy_tag.py > $tmp1
+cat data/test.origin | sed -e 's/^$//g' > $tmp1
+cat $tmp1 | python tools/dummy_tag.py > $tmp2
+cat $tmp2 | python tools/length_filter.py > $tmp1
 cat $tmp1 | python tools/add_features.py > data/test.txt
 
 # expand train/valid with no_kaomoji data(remeved kaomoji from train/valid)

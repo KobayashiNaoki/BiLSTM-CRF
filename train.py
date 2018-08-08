@@ -48,13 +48,13 @@ def main():
     out_dir.mkdir(exist_ok=True)
 
     # load dataset
-    train_iter, train_size, vocabs, device, fields = make_train_iterator(args.train_file, args.batch_size, args.gpu)
+    train_iter, _, train_size, vocabs, device, fields = make_train_iterator(args.train_file, args.batch_size, args.gpu)
     print('vocab size (include <unk>, <pad>)| char:{}, tag:{}, pos:{}, position:{}'.format(
         len(vocabs[0]), len(vocabs[1]), len(vocabs[2]), len(vocabs[3])), file=sys.stderr)
     O_tag_id = vocabs[1].stoi['O'] #tag vocab
-    valid_iter, valid_size = make_valid_iterator(args.valid_file, args.batch_size, device, fields)
+    valid_iter, _, valid_size = make_valid_iterator(args.valid_file, args.batch_size, device, fields)
     if args.test_file is not None:
-        test_iter, test_size = make_valid_iterator(args.test_file, args.batch_size, device, fields)
+        test_iter, test, test_size = make_valid_iterator(args.test_file, args.batch_size, device, fields)
 
     # Setup a neural network
     model = KaomojiTagger(len(vocabs[0]), len(vocabs[1]),
@@ -85,7 +85,7 @@ def main():
         if args.test_file is not None:
             test_loss, test_accu_all, test_accu_bi = valid_loop(test_iter, model, O_tag_id)
             print(test_accu_all, test_accu_bi, file=sys.stderr)
-            kao_dict = extract_kaomoji(test_iter, model, O_tag_id, vocabs[0])
+            kao_dict = extract_kaomoji(test_iter, model, O_tag_id, vocabs[0], test)
             print('\n'.join(kao_dict))
         return 0
 
@@ -180,26 +180,29 @@ def valid_loop(valid_iter, model, O_tag_id):
     model.train()
     return avg_loss, avg_accu_all, avg_accu_bi
 
-def extract_kaomoji(test_iter, model, O_tag_id, vocab):
+def extract_kaomoji(test_iter, model, O_tag_id, vocab, test):
     kaomoji_dict = []
     model.eval()
     for iteration, batch in enumerate(test_iter):
+        bs = len(batch)
+        test_batch = test[iteration*bs: (iteration+1)*bs]
         src = batch.text[0]
         feats = (batch.pos, batch.position)
         length = batch.text[1]
         # label prediction
         label, scores = model.predict(src, feats, length, return_scores=True)
-        kaomoji_dict.extend(_extract_kaomoji(label, src, O_tag_id, vocab))
+        kaomoji_dict.extend(_extract_kaomoji(label, src, O_tag_id, vocab, test_batch))
     return kaomoji_dict
 
-def _extract_kaomoji(tags, sentences, O_tag_id, vocab):
+def _extract_kaomoji(tags, sentences, O_tag_id, vocab, raw_sentences):
     tags = tags.cpu().numpy()
     sentences = sentences.cpu().numpy()
     kaomojis = []
-    for labels, sentence in zip(tags, sentences): #batch loop
+    for labels, sentence, raw_sentence in zip(tags, sentences, raw_sentences): #batch loop
         kaomoji = []
-        for label, char_id in zip(labels, sentence):
-            char = vocab.itos[char_id]
+        for label, char_id in zip(labels, raw_sentence.text):
+            #char = vocab.itos[char_id]
+            char = char_id
             if char == '<pad>':
                 break
             if label != O_tag_id:

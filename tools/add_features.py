@@ -36,7 +36,7 @@ if __name__ == '__main__':
 
     for line in sys.stdin:
         mecab = MeCab.Tagger()
-        # mecab.parse(str)
+        mecab.parse('')
         sentence, tags = line.rstrip().split('\t')
         pos_feat, position_feat = make_features(sentence, mecab.parse)
         pos_feat = ' '.join(pos_feat)
